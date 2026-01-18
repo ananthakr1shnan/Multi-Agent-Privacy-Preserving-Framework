@@ -1,0 +1,122 @@
+/*
+ * Terminal / Trace Log Styles
+ * Retro terminal with auto-scrolling
+ */
+
+.trace-terminal {
+    background: hsl(0, 0%, 5%);
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.9rem;
+    padding: 1.5rem;
+    border-radius: 0 0 16px 16px;
+    height: 400px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    line-height: 1.6;
+}
+
+/* Custom scrollbar */
+.trace-terminal::-webkit-scrollbar {
+    width: 8px;
+}
+
+.trace-terminal::-webkit-scrollbar-track {
+    background: hsl(0, 0%, 10%);
+}
+
+.trace-terminal::-webkit-scrollbar-thumb {
+    background: hsl(140, 70%, 40%);
+    border-radius: 4px;
+}
+
+.trace-terminal::-webkit-scrollbar-thumb:hover {
+    background: hsl(140, 70%, 50%);
+}
+
+.terminal-line {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.timestamp {
+    color: hsl(140, 70%, 55%);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.message {
+    color: hsl(0, 0%, 85%);
+    flex: 1;
+}
+
+/* Different log levels */
+.terminal-line.system .timestamp {
+    color: hsl(220, 90%, 60%);
+}
+
+.terminal-line.privacy .timestamp {
+    color: hsl(45, 100%, 60%);
+}
+
+.terminal-line.agent .timestamp {
+    color: hsl(280, 80%, 65%);
+}
+
+.terminal-line.success .timestamp {
+    color: hsl(140, 70%, 55%);
+}
+
+.terminal-line.error .timestamp {
+    color: hsl(0, 80%, 60%);
+}
+
+/* PII tokens highlighting */
+.pii-token {
+    background: rgba(255, 193, 7, 0.2);
+    color: hsl(45, 100%, 60%);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-weight: 700;
+}
+
+/* Node type badges in terminal */
+.node-badge {
+    background: rgba(66, 135, 245, 0.2);
+    color: hsl(220, 90%, 60%);
+    padding: 0.1rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 0.5rem;
+}
+
+.node-badge.privacy {
+    background: rgba(255, 193, 7, 0.2);
+    color: hsl(45, 100%, 60%);
+}
+
+.node-badge.agent {
+    background: rgba(138, 43, 226, 0.2);
+    color: hsl(280, 80%, 65%);
+}
+
+.node-badge.aggregator {
+    background: rgba(0, 200, 150, 0.2);
+    color: hsl(160, 80%, 50%);
+}
