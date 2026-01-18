@@ -24,3 +24,5 @@ ENV/
 
 # Logs
 *.log
+
+DEPLOYMENT.md
