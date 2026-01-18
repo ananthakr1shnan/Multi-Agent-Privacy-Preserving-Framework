@@ -1,122 +1,116 @@
 /*
  * Terminal / Trace Log Styles
- * Retro terminal with auto-scrolling
+ * Clean monochrome terminal aesthetic
  */
 
 .trace-terminal {
-    background: hsl(0, 0%, 5%);
+    background: #000000;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
-    font-size: 0.9rem;
-    padding: 1.5rem;
-    border-radius: 0 0 16px 16px;
+    font-size: 0.8rem;
+    padding: 1rem;
     height: 400px;
     overflow-y: auto;
     scroll-behavior: smooth;
     line-height: 1.6;
+    border: 1px solid #333333;
 }
 
-/* Custom scrollbar */
+/* Minimal scrollbar */
 .trace-terminal::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
 }
 
 .trace-terminal::-webkit-scrollbar-track {
-    background: hsl(0, 0%, 10%);
+    background: #000000;
 }
 
 .trace-terminal::-webkit-scrollbar-thumb {
-    background: hsl(140, 70%, 40%);
-    border-radius: 4px;
+    background: #333333;
 }
 
 .trace-terminal::-webkit-scrollbar-thumb:hover {
-    background: hsl(140, 70%, 50%);
+    background: #444444;
 }
 
 .terminal-line {
     display: flex;
     gap: 1rem;
-    margin-bottom: 0.75rem;
-    animation: fadeIn 0.3s ease;
+    margin-bottom: 0.5rem;
+    opacity: 0;
+    animation: fadeIn 0.15s ease forwards;
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateX(-10px);
-    }
-
     to {
         opacity: 1;
-        transform: translateX(0);
     }
 }
 
 .timestamp {
-    color: hsl(140, 70%, 55%);
-    font-weight: 600;
+    color: #666666;
+    font-weight: 400;
     flex-shrink: 0;
+    font-size: 0.75rem;
 }
 
 .message {
-    color: hsl(0, 0%, 85%);
+    color: #aaaaaa;
     flex: 1;
 }
 
-/* Different log levels */
+/* Log levels */
 .terminal-line.system .timestamp {
-    color: hsl(220, 90%, 60%);
+    color: #00b4f0;
 }
 
 .terminal-line.privacy .timestamp {
-    color: hsl(45, 100%, 60%);
+    color: #ffcc00;
 }
 
 .terminal-line.agent .timestamp {
-    color: hsl(280, 80%, 65%);
+    color: #888888;
 }
 
 .terminal-line.success .timestamp {
-    color: hsl(140, 70%, 55%);
+    color: #00c864;
 }
 
 .terminal-line.error .timestamp {
-    color: hsl(0, 80%, 60%);
+    color: #ff0044;
 }
 
-/* PII tokens highlighting */
+/* PII tokens */
 .pii-token {
-    background: rgba(255, 193, 7, 0.2);
-    color: hsl(45, 100%, 60%);
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    font-weight: 700;
+    background: rgba(255, 200, 0, 0.15);
+    color: #ffcc00;
+    padding: 0.05rem 0.25rem;
+    font-weight: 400;
 }
 
-/* Node type badges in terminal */
+/* Node badges */
 .node-badge {
-    background: rgba(66, 135, 245, 0.2);
-    color: hsl(220, 90%, 60%);
-    padding: 0.1rem 0.5rem;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
+    background: transparent;
+    color: #666666;
+    padding: 0.05rem 0.4rem;
+    border: 1px solid #444444;
+    font-size: 0.7rem;
+    font-weight: 400;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-left: 0.5rem;
+    margin-right: 0.5rem;
 }
 
 .node-badge.privacy {
-    background: rgba(255, 193, 7, 0.2);
-    color: hsl(45, 100%, 60%);
+    color: #ffcc00;
+    border-color: rgba(255, 200, 0, 0.3);
 }
 
 .node-badge.agent {
-    background: rgba(138, 43, 226, 0.2);
-    color: hsl(280, 80%, 65%);
+    color: #00b4f0;
+    border-color: rgba(0, 180, 240, 0.3);
 }
 
 .node-badge.aggregator {
-    background: rgba(0, 200, 150, 0.2);
-    color: hsl(160, 80%, 50%);
+    color: #00c864;
+    border-color: rgba(0, 200, 100, 0.3);
 }

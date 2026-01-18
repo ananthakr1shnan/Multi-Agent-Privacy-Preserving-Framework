@@ -1,23 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPPF Mission Control - Privacy-First AI Dashboard</title>
-    
+    <title>MPPF - Privacy-Preserving AI Framework</title>
+
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    
+
+    <!-- Google Fonts - Terminal Style -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/dashboard.css">
     <link rel="stylesheet" href="/static/css/terminal.css">
 </head>
+
 <body>
     <!-- Header -->
     <header class="dashboard-header">
@@ -26,14 +28,14 @@
                 <div class="col-md-6">
                     <h1 class="header-title">
                         <span class="shield-icon">🛡️</span>
-                        MPPF Mission Control
+                        MULTI-AGENT PRIVACY-PRESERVING FRAMEWORK
                     </h1>
-                    <p class="header-subtitle">Multi-Agent Privacy-Preserving Framework</p>
+                    <p class="header-subtitle">Privacy-First AI with Local PII Redaction</p>
                 </div>
                 <div class="col-md-6 text-end">
                     <div class="status-indicator">
                         <span class="status-dot status-active"></span>
-                        <span class="status-text">System Active</span>
+                        <span class="status-text">System Online</span>
                     </div>
                 </div>
             </div>
@@ -53,13 +55,10 @@
                         <div class="panel-body">
                             <form id="queryForm">
                                 <div class="mb-3">
-                                    <textarea style="color:white"
-                                        id="userQuery" 
-                                        class="form-control query-input" 
-                                        rows="4" 
+                                    <textarea style="color:white" id="userQuery" class="form-control query-input"
+                                        rows="4"
                                         placeholder="Enter your query here... (Try including personal information like names, emails, or locations to see the privacy shield in action!)"
-                                        required
-                                    ></textarea>
+                                        required></textarea>
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
@@ -70,10 +69,12 @@
                                                 Processing...
                                             </span>
                                         </button>
-                                        <button type="button" class="btn btn-secondary ms-2" id="clearBtn">Clear</button>
+                                        <button type="button" class="btn btn-secondary ms-2"
+                                            id="clearBtn">Clear</button>
                                     </div>
                                     <div class="example-queries">
-                                        <small class="text-muted">Example: "Schedule a meeting with John Doe (john@example.com) at CET tomorrow"</small>
+                                        <small class="text-muted">Example: "Schedule a meeting with John Doe
+                                            (john@example.com) at CET tomorrow"</small>
                                     </div>
                                 </div>
                             </form>
@@ -96,7 +97,8 @@
                                 <div class="placeholder-state">
                                     <div class="placeholder-icon">🔒</div>
                                     <p class="placeholder-text">Awaiting query to analyze...</p>
-                                    <small class="text-muted">PII will be detected and redacted locally before cloud processing</small>
+                                    <small class="text-muted">PII will be detected and redacted locally before cloud
+                                        processing</small>
                                 </div>
                             </div>
                             <div id="privacyStats" class="privacy-stats" style="display: none;">
@@ -190,7 +192,7 @@
                                     <p class="placeholder-text">Response will appear here...</p>
                                 </div>
                             </div>
-                            
+
                             <!-- Agent Contribution Chart -->
                             <div id="chartContainer" style="display: none;" class="mt-4">
                                 <h5 class="chart-title">Agent Contribution Weights</h5>
@@ -209,12 +211,12 @@
             <div class="row">
                 <div class="col-md-6">
                     <p class="footer-text mb-0">
-                        <strong>MPPF</strong> - College of Engineering, Trivandrum (CET)
+                        <strong>MPPF</strong> - College of Engineering Trivandrum (CET)
                     </p>
                 </div>
                 <div class="col-md-6 text-end">
                     <p class="footer-text mb-0">
-                        Privacy-First AI · Multi-Agent Architecture · Real-Time Orchestration
+                        Multi-Agent System · Privacy-Preserving Architecture · Local PII Redaction
                     </p>
                 </div>
             </div>
@@ -223,12 +225,13 @@
 
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Custom JS -->
     <script src="/static/js/monitor.js"></script>
     <script src="/static/js/dashboard.js"></script>
 </body>
+
 </html>
