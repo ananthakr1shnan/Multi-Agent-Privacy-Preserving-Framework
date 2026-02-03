@@ -83,6 +83,15 @@ $(document).ready(function () {
         );
         $('#privacyStats').hide();
 
+        // Reset domain expert panel
+        $('#domainContent').html(
+            '<div class="placeholder-state">' +
+            '<div class="placeholder-icon">🎯</div>' +
+            '<p class="placeholder-text">Analyzing...</p>' +
+            '</div>'
+        );
+        $('#domainStats').hide();
+
         // Reset agent statuses
         $('.agent-status').removeClass('active completed').each(function () {
             $(this).find('.agent-state').text('Idle');
@@ -104,6 +113,11 @@ $(document).ready(function () {
         // Display final response
         const formattedResponse = formatMarkdown(result.final_response);
         $('#finalResponse').html(formattedResponse);
+
+        // Display DP metrics if available
+        if (result.dp_metrics) {
+            displayDPMetrics(result.dp_metrics);
+        }
 
         // Display agent contributions chart
         displayContributionChart(result.agent_contributions);
@@ -215,9 +229,82 @@ $(document).ready(function () {
         terminal.scrollTop = terminal.scrollHeight;
     }
 
+    function displayDomainAnalysis(domainAnalysis) {
+        if (!domainAnalysis) return;
+
+        // Show domain stats
+        $('#domainStats').show();
+        $('#domainContent').hide();
+
+        // Update domain name
+        $('#domainName').text(domainAnalysis.predicted_domain);
+
+        // Update confidence meter
+        const confidencePct = Math.round(domainAnalysis.confidence * 100);
+        $('#confidenceBar').css('width', confidencePct + '%');
+        $('#confidenceText').text(confidencePct + '%');
+
+        // Show/hide sensitivity indicator
+        if (domainAnalysis.is_high_sensitivity) {
+            $('#sensitivityIndicator').show();
+        } else {
+            $('#sensitivityIndicator').hide();
+        }
+
+        // Update processing time
+        $('#domainTime').text(Math.round(domainAnalysis.processing_time_ms) + 'ms');
+    }
+
+    // Display Differential Privacy Metrics
+    function displayDPMetrics(dpMetrics) {
+        if (!dpMetrics) return;
+
+        // Show DP metrics panel
+        $('#dpMetrics').show();
+        $('#dpContent').hide();
+
+        // Update privacy guarantee
+        $('#dpGuarantee').text(dpMetrics.privacy_guarantee);
+
+        // Update budget meter
+        const budgetPct = (dpMetrics.budget_used / dpMetrics.epsilon_budget) * 100;
+        $('#budgetBar').css('width', budgetPct + '%');
+        $('#budgetText').text(dpMetrics.budget_used.toFixed(2) + ' / ' + dpMetrics.epsilon_budget.toFixed(1));
+
+        // Update stats
+        $('#queriesProcessed').text(dpMetrics.queries_processed);
+        $('#noiseScale').text(dpMetrics.noise_scale.toFixed(2));
+    }
+
     // Export for use by monitor.js
     window.dashboardUI = {
         addTraceLog,
-        toggleSubmitButton
+        toggleSubmitButton,
+        displayDomainAnalysis,
+        displayDPMetrics
     };
 });
+
+// Display Differential Privacy Metrics
+function displayDPMetrics(dpMetrics) {
+    if (!dpMetrics) return;
+
+    // Show DP metrics panel
+    $('#dpMetrics').show();
+    $('#dpContent').hide();
+
+    // Update privacy guarantee
+    $('#dpGuarantee').text(dpMetrics.privacy_guarantee);
+
+    // Update budget meter
+    const budgetPct = (dpMetrics.budget_used / dpMetrics.epsilon_budget) * 100;
+    $('#budgetBar').css('width', budgetPct + '%');
+    $('#budgetText').text(dpMetrics.budget_used.toFixed(2) + ' / ' + dpMetrics.epsilon_budget.toFixed(1));
+
+    // Update stats
+    $('#queriesProcessed').text(dpMetrics.queries_processed);
+    $('#noiseScale').text(dpMetrics.noise_scale.toFixed(2));
+}
+
+// Export DP function
+window.dashboardUI.displayDPMetrics = displayDPMetrics;

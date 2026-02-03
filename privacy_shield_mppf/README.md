@@ -37,6 +37,7 @@ User Query → Privacy Shield (Local) → [Parallel Agents] → Aggregator → F
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | **Privacy Shield** | Microsoft Presidio | Local PII detection & redaction |
+| **Domain Expert** | T5-base + LoRA | Local domain classification & context |
 | **Workflow Engine** | Custom DAG | Parallel agent orchestration |
 | **LLM Inference** | Groq (Llama 3) | Cloud-based reasoning |
 | **Backend API** | FastAPI | Async HTTP + SSE streaming |
@@ -46,27 +47,31 @@ User Query → Privacy Shield (Local) → [Parallel Agents] → Aggregator → F
 ### Workflow DAG
 
 ```
-┌─────────────────┐
-│  Privacy Shield │ (Root Node - Local)
-│   - PII Detection
-│   - Anonymization
-└────────┬────────┘
-         │
-    ┌────┴────┬─────────┬──────────┐
-    │         │         │          │
-┌───▼───┐ ┌──▼───┐ ┌───▼────┐     │
-│Produc-│ │Ethics│ │Creative│ (Parallel)
-│tivity │ │Agent │ │ Agent  │
-└───┬───┘ └──┬───┘ └───┬────┘
-    │        │         │
-    └────┬───┴─────┬───┘
-         │         │
-    ┌────▼─────────▼───┐
-    │   Aggregator     │ (Sink Node)
-    │  - Synthesis
-    │  - Weighted merge
-    └──────────────────┘
+     ┌─────────────────┐     ┌──────────────────┐
+     │  Privacy Shield │     │  Domain Expert   │ (Parallel Root Nodes - Local)
+     │ - PII Detection │     │ - T5 Classifier  │
+     │ - Anonymization │     │ - Persona Gen    │
+     └────────┬────────┘     └────────┬─────────┘
+              │                       │
+              └───────────┬───────────┘
+                          │
+         ┌────────────────┼────────────────┐
+         │                │                │
+    ┌────▼────┐      ┌────▼────┐     ┌────▼────┐
+    │Produc-  │      │ Ethics  │     │Creative │ (Parallel - Cloud)
+    │tivity   │      │ Agent   │     │ Agent   │ (with domain context)
+    └────┬────┘      └────┬────┘     └────┬────┘
+         │                │                │
+         └────────────┬───┴────────────────┘
+                      │
+              ┌───────▼────────┐
+              │   Aggregator   │ (Sink Node)
+              │ - Synthesis    │
+              │ - Dynamic      │
+              │   Weighting    │
+              └────────────────┘
 ```
+
 
 ---
 
@@ -204,7 +209,40 @@ print(analysis.anonymized_text)
 
 ---
 
-## 🤖 Multi-Agent System
+### 2. **Domain Expert (T5-LoRA)**
+
+The Domain Expert is a custom-trained T5-base model with LoRA adapters that provides domain context to guide cloud LLM reasoning.
+
+**Key Features:**
+- **Local Execution**: Runs entirely on-premise for privacy
+- **Keyword-Based Classification**: Robust fallback using strategic domain mappings
+- **Persona Directive Generation**: Creates context-specific guidance for cloud agents
+- **High-Sensitivity Detection**: Identifies domains requiring enhanced ethical oversight
+- **Dynamic Weighting**: Triggers aggregator to boost Ethics agent weight (50%) for sensitive domains
+
+**Strategic Domains:**
+- Privacy & Data Security
+- Financial & Business
+- Academic & Educational
+- Legal & Compliance
+- Healthcare & Medical
+- Technical & Development
+- General & Miscellaneous
+
+**Example:**
+```python
+# Input: "How should I handle customer credit card data?"
+# Output:
+{
+  "predicted_domain": "Privacy & Data Security",
+  "confidence": 0.92,
+  "is_high_sensitivity": true,
+  "persona_directive": "You are assisting with a Privacy & Data Security query. Prioritize data protection, compliance (GDPR, PCI-DSS), and security best practices."
+}
+```
+
+### 3. **Multi-Agent System**
+
 
 ### Agent Personas
 
@@ -239,7 +277,26 @@ print(analysis.anonymized_text)
 - Real-time trace visibility
 - Agent contribution breakdown
 
-### 4. **Privacy Preservation**
+### 4. **Intelligent Aggregation**
+
+The aggregator synthesizes responses using **Expert-Informed Dynamic Weighting**:
+
+**Standard Weighting:**
+- Confidence-based distribution across all agents
+
+**High-Sensitivity Domains** (Privacy, Finance, Legal, Health):
+- Ethics Agent: 50%
+- Productivity Agent: 35%
+- Creativity Agent: 15%
+
+This ensures ethical considerations are prioritized for sensitive queries.
+
+### 5. **Real-Time Transparency**
+
+- Real-time trace visibility
+- Agent contribution breakdown
+
+### 6. **Privacy Preservation**
 - Zero PII leakage to cloud
 - Local-first processing guarantee
 
@@ -348,3 +405,19 @@ For questions or collaboration:
 ---
 
 **Built with ❤️ for Privacy-First AI**
+
+## 🛡️ Privacy Features
+
+### 1. Hybrid Semantic Shield (Adaptive Redaction)
+- **Problem**: Standard recognizers fail on implicit PII (e.g., '1234' in banking context).
+- **Solution**: 
+  - **Domain Expert** classifies query context (Finance, Health, Tech).
+  - **Aggressive Mode** triggers for high-sensitivity domains.
+  - **Context-Aware Redaction**: Detects PINs, passwords, account numbers without explicit keywords.
+
+### 2. Differential Privacy (DP)
+- **Guarantee**: Formal (ε, δ)-DP on all system outputs.
+- **Implementation**:
+  - **Laplacian Noise** injected into agent confidence scores.
+  - **Privacy Budget (ε)** tracked per session.
+  - **Visualization**: Real-time budget meter in dashboard.

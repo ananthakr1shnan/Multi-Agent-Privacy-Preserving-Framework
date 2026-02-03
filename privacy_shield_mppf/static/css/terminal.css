@@ -114,3 +114,8 @@
     color: #00c864;
     border-color: rgba(0, 200, 100, 0.3);
 }
+
+.node-badge.domain {
+    color: hsl(271, 76%, 63%);
+    border-color: rgba(138, 43, 226, 0.3);
+}

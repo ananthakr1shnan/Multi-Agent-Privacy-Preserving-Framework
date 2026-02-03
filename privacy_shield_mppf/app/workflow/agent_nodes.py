@@ -14,12 +14,13 @@ class BaseAgent:
         self.node_type = node_type
         self.system_prompt = system_prompt
     
-    async def process(self, anonymized_query: str) -> AgentResponse:
+    async def process(self, anonymized_query: str, domain_context: str = None) -> AgentResponse:
         """
         Process the anonymized query and generate a response.
         
         Args:
             anonymized_query: PII-redacted user query
+            domain_context: Optional domain expert context to guide reasoning
             
         Returns:
             AgentResponse with the agent's output
@@ -27,9 +28,14 @@ class BaseAgent:
         start_time = time.time()
         
         try:
+            # Prepend domain context to system prompt if provided
+            system_prompt = self.system_prompt
+            if domain_context:
+                system_prompt = f"{domain_context}\n\n{self.system_prompt}"
+            
             result = await groq_client.generate(
                 prompt=anonymized_query,
-                system_prompt=self.system_prompt,
+                system_prompt=system_prompt,
                 temperature=0.7
             )
             

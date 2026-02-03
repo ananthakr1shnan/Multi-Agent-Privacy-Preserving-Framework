@@ -1,0 +1,1 @@
+{"model_name": "t5-base", "context_dim": 33, "ctx_category_dim": 32, "num_categories": 13, "step": null, "epoch": 1}

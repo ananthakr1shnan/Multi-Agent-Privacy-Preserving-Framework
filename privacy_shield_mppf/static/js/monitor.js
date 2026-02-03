@@ -42,6 +42,10 @@ $(document).ready(function () {
                 handlePrivacyShieldEvent(status, message, data);
                 break;
 
+            case 'domain_expert':
+                handleDomainExpertEvent(status, message, data);
+                break;
+
             case 'productivity_agent':
             case 'ethics_agent':
             case 'creativity_agent':
@@ -93,6 +97,23 @@ $(document).ready(function () {
         return text.replace(/(<[A-Z_]+>)/g, '<span class="entity-highlight">$1</span>');
     }
 
+    function handleDomainExpertEvent(status, message, data) {
+        if (status === 'started') {
+            $('#domainContent').html(
+                '<div class="placeholder-state">' +
+                '<div class="spinner-border text-info" role="status"></div>' +
+                '<p class="placeholder-text mt-3">Classifying domain...</p>' +
+                '</div>'
+            );
+        } else if (status === 'completed' && data) {
+            // Use the displayDomainAnalysis function from dashboard.js
+            if (window.dashboardUI && window.dashboardUI.displayDomainAnalysis) {
+                window.dashboardUI.displayDomainAnalysis(data);
+            }
+        }
+    }
+
+
     function handleAgentEvent(nodeType, status, message, data) {
         const agentName = nodeType.replace('_agent', '');
         const $agentStatus = $(`.agent-status[data-agent="${agentName}"]`);
@@ -116,6 +137,11 @@ $(document).ready(function () {
                 '<p class="placeholder-text mt-3">Synthesizing responses...</p>' +
                 '</div>'
             );
+        } else if (status === 'completed' && data) {
+            // Display DP metrics from trace event if available
+            if (data.dp_metrics && window.dashboardUI && window.dashboardUI.displayDPMetrics) {
+                window.dashboardUI.displayDPMetrics(data.dp_metrics);
+            }
         }
     }
 
@@ -147,6 +173,7 @@ $(document).ready(function () {
 
     function getNodeBadgeClass(nodeType) {
         if (nodeType === 'privacy_shield') return 'privacy';
+        if (nodeType === 'domain_expert') return 'domain';
         if (nodeType === 'aggregator') return 'aggregator';
         return 'agent';
     }

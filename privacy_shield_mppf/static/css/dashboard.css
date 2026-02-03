@@ -279,6 +279,131 @@ body {
     font-weight: 700;
 }
 
+/* Domain Expert Panel */
+.domain-expert-panel {
+    border-color: rgba(138, 43, 226, 0.3);
+}
+
+.domain-badge {
+    background: rgba(138, 43, 226, 0.15);
+    color: hsl(271, 76%, 53%);
+    padding: 0.4rem 0.8rem;
+    border: 1px solid hsl(271, 76%, 53%);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.domain-content {
+    min-height: 200px;
+    background: var(--bg-dark);
+    border: var(--border-primary);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.domain-stats {
+    padding: 0.75rem;
+    background: var(--bg-medium);
+    border: var(--border-primary);
+    border-top: none;
+}
+
+.domain-classification {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: var(--border-primary);
+}
+
+.domain-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    display: block;
+    margin-bottom: 0.4rem;
+}
+
+.domain-value {
+    color: hsl(271, 76%, 63%);
+    font-weight: 700;
+    font-size: 1rem;
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: rgba(138, 43, 226, 0.1);
+    border: 1px solid rgba(138, 43, 226, 0.3);
+}
+
+.confidence-meter-container {
+    margin-bottom: 0.75rem;
+}
+
+.confidence-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    display: block;
+    margin-bottom: 0.4rem;
+}
+
+.confidence-meter {
+    position: relative;
+    width: 100%;
+    height: 24px;
+    background: var(--bg-dark);
+    border: var(--border-primary);
+    overflow: hidden;
+}
+
+.confidence-bar {
+    height: 100%;
+    background: linear-gradient(90deg,
+            hsl(271, 76%, 43%) 0%,
+            hsl(271, 76%, 63%) 100%);
+    transition: width 0.5s ease;
+    position: relative;
+}
+
+.confidence-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    z-index: 1;
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
+.sensitivity-indicator {
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    background: rgba(255, 140, 0, 0.1);
+    border: 1px solid rgba(255, 140, 0, 0.3);
+    border-radius: 2px;
+}
+
+.sensitivity-badge {
+    color: hsl(30, 100%, 50%);
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.sensitivity-note {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    display: block;
+}
+
+.domain-stats .stat-item {
+    margin-top: 0.5rem;
+}
+
+.domain-stats .stat-value {
+    color: hsl(271, 76%, 63%);
+}
+
+
 /* Agent Monitor */
 .agent-monitor {
     display: flex;
@@ -393,4 +518,103 @@ body {
         flex-direction: column;
         gap: 0.5rem;
     }
+}
+/* ===========================
+   Differential Privacy Panel
+   =========================== */
+
+.dp-panel {
+    border-color: rgba(0, 200, 100, 0.3);
+}
+
+.dp-panel .panel-header {
+    border-bottom-color: rgba(0, 200, 100, 0.2);
+}
+
+.dp-badge {
+    background: rgba(0, 200, 100, 0.15);
+    color: hsl(150, 100%, 40%);
+    border: 1px solid rgba(0, 200, 100, 0.3);
+}
+
+.dp-guarantee-display {
+    background: rgba(0, 200, 100, 0.05);
+    border: 1px solid rgba(0, 200, 100, 0.2);
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.guarantee-label {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.guarantee-value {
+    color: hsl(150, 100%, 50%);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.budget-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.budget-label {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.budget-text {
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.budget-meter {
+    background: var(--bg-dark);
+    height: 24px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 200, 100, 0.2);
+    margin-bottom: 0.5rem;
+}
+
+.budget-bar {
+    background: linear-gradient(90deg, hsl(150, 100%, 30%) 0%, hsl(150, 100%, 50%) 100%);
+    height: 100%;
+    transition: width 0.5s ease;
+}
+
+.budget-note {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-style: italic;
+}
+
+.dp-stats .stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem;
+    background: rgba(0, 200, 100, 0.03);
+    border-left: 2px solid rgba(0, 200, 100, 0.3);
+    margin-bottom: 0.5rem;
+}
+
+.dp-stats .stat-label {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.dp-stats .stat-value {
+    color: hsl(150, 100%, 50%);
+    font-weight: 600;
 }

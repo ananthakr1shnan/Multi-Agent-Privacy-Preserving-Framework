@@ -7,16 +7,18 @@ import time
 from typing import List, Callable, Any, AsyncGenerator
 from datetime import datetime
 from app.schemas.models import (
-    TraceEvent, NodeType, AggregatedResult, PrivacyAnalysis
+    TraceEvent, NodeType, AggregatedResult, PrivacyAnalysis, DomainAnalysis
 )
 from app.workflow.privacy_node import privacy_shield
+from app.workflow.domain_expert_node import domain_expert
 from app.workflow.agent_nodes import productivity_agent, ethics_agent, creativity_agent
 from app.workflow.aggregator import aggregator
 
 
 class WorkflowEngine:
     """
-    Orchestrates the DAG execution: Shield → [Agents] → Aggregator.
+    Orchestrates the DAG execution: [Shield + Domain Expert] → [Agents] → Aggregator.
+    Privacy Shield and Domain Expert run in parallel for efficiency.
     Emits trace events for real-time monitoring.
     """
     
@@ -40,7 +42,7 @@ class WorkflowEngine:
         """
         workflow_start = time.time()
         
-        # Step 1: Privacy Shield (Root Node)
+        # Step 1: Privacy Shield + Domain Expert (Parallel Root Nodes)
         await self._emit_event(
             NodeType.PRIVACY_SHIELD,
             "started",
@@ -48,24 +50,88 @@ class WorkflowEngine:
             event_callback
         )
         
-        privacy_start = time.time()
-        privacy_analysis = privacy_shield.analyze_and_redact(user_query)
-        privacy_time = (time.time() - privacy_start) * 1000
-        
         await self._emit_event(
-            NodeType.PRIVACY_SHIELD,
-            "completed",
-            f"Privacy analysis complete. {privacy_analysis.redaction_count} entities redacted.",
-            event_callback,
-            data={
-                "redaction_count": privacy_analysis.redaction_count,
-                "anonymized_query": privacy_analysis.anonymized_text,
-                "processing_time_ms": privacy_time
-            }
+            NodeType.DOMAIN_EXPERT,
+            "started",
+            "Domain Expert analyzing query context...",
+            event_callback
         )
         
-        # Step 2: Parallel Agent Execution
+        # Execute Privacy Shield and Domain Expert in parallel
+        async def run_privacy():
+            privacy_start = time.time()
+            result = privacy_shield.analyze_and_redact(user_query)
+            privacy_time = (time.time() - privacy_start) * 1000
+            await self._emit_event(
+                NodeType.PRIVACY_SHIELD,
+                "completed",
+                f"Privacy analysis complete. {result.redaction_count} entities redacted.",
+                event_callback,
+                data={
+                    "redaction_count": result.redaction_count,
+                    "anonymized_query": result.anonymized_text,
+                    "processing_time_ms": privacy_time
+                }
+            )
+            return result
+        
+        async def run_domain_expert():
+            # Domain expert analyzes the original query (before PII redaction)
+            # This is safe because it runs locally
+            domain_start = time.time()
+            result = domain_expert.analyze_domain(user_query)
+            await self._emit_event(
+                NodeType.DOMAIN_EXPERT,
+                "completed",
+                f"Domain classified as '{result.predicted_domain}' (confidence: {result.confidence:.0%})",
+                event_callback,
+                data={
+                    "predicted_domain": result.predicted_domain,
+                    "confidence": result.confidence,
+                    "is_high_sensitivity": result.is_high_sensitivity,
+                    "processing_time_ms": result.processing_time_ms
+                }
+            )
+            return result
+        
+        # Run both in parallel
+        privacy_analysis, domain_analysis = await asyncio.gather(
+            run_privacy(),
+            run_domain_expert()
+        )
+        
+        # Step 1.5: Adaptive Re-Redaction for High-Sensitivity Domains
+        if domain_analysis.is_high_sensitivity and not privacy_analysis.aggressive_mode_triggered:
+            await self._emit_event(
+                NodeType.PRIVACY_SHIELD,
+                "processing",
+                f"Triggering aggressive mode for {domain_analysis.predicted_domain} domain...",
+                event_callback
+            )
+            
+            # Re-run privacy analysis with aggressive mode
+            privacy_analysis = privacy_shield.analyze_and_redact(
+                user_query,
+                aggressive_mode=True,
+                domain_context=domain_analysis.predicted_domain
+            )
+            
+            await self._emit_event(
+                NodeType.PRIVACY_SHIELD,
+                "completed",
+                f"Aggressive redaction complete ({privacy_analysis.redaction_count} redactions)",
+                event_callback,
+                data={
+                    "redaction_count": privacy_analysis.redaction_count,
+                    "anonymized_query": privacy_analysis.anonymized_text,
+                    "redaction_strategy": privacy_analysis.redaction_strategy,
+                    "aggressive_mode": True
+                }
+            )
+        
+        # Step 2: Parallel Agent Execution with Domain Context
         anonymized_query = privacy_analysis.anonymized_text
+        domain_context = domain_analysis.persona_directive
         
         await self._emit_event(
             NodeType.PRODUCTIVITY_AGENT,
@@ -88,11 +154,11 @@ class WorkflowEngine:
             event_callback
         )
         
-        # Execute all agents in parallel
+        # Execute all agents in parallel with domain context
         agent_results = await asyncio.gather(
-            productivity_agent.process(anonymized_query),
-            ethics_agent.process(anonymized_query),
-            creativity_agent.process(anonymized_query),
+            productivity_agent.process(anonymized_query, domain_context),
+            ethics_agent.process(anonymized_query, domain_context),
+            creativity_agent.process(anonymized_query, domain_context),
             return_exceptions=True
         )
         
@@ -126,6 +192,7 @@ class WorkflowEngine:
         final_result = aggregator.synthesize(
             agent_responses=[r for r in agent_results if not isinstance(r, Exception)],
             privacy_analysis=privacy_analysis,
+            domain_analysis=domain_analysis,
             total_processing_time_ms=total_time
         )
         

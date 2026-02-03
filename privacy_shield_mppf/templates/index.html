@@ -83,10 +83,10 @@
                 </div>
             </div>
 
-            <!-- Privacy Shield & Agent Monitoring -->
+            <!-- Privacy Shield & Domain Expert & Agent Monitoring -->
             <div class="row mb-4">
                 <!-- Privacy Shield Panel -->
-                <div class="col-lg-6 mb-4 mb-lg-0">
+                <div class="col-lg-4 mb-4 mb-lg-0">
                     <div class="panel privacy-panel">
                         <div class="panel-header">
                             <h2 class="panel-title">🛡️ Privacy Shield</h2>
@@ -115,8 +115,94 @@
                     </div>
                 </div>
 
+                <!-- Domain Expert Panel (System Transparency) -->
+                <div class="col-lg-4 mb-4 mb-lg-0">
+                    <div class="panel domain-expert-panel">
+                        <div class="panel-header">
+                            <h2 class="panel-title">🧠 Domain Expert</h2>
+                            <span class="badge domain-badge">T5-LoRA Model</span>
+                        </div>
+                        <div class="panel-body">
+                            <div id="domainContent" class="domain-content">
+                                <div class="placeholder-state">
+                                    <div class="placeholder-icon">🎯</div>
+                                    <p class="placeholder-text">Awaiting query to classify...</p>
+                                    <small class="text-muted">Custom-trained model provides domain context to guide
+                                        reasoning</small>
+                                </div>
+                            </div>
+                            <div id="domainStats" class="domain-stats" style="display: none;">
+                                <div class="domain-classification">
+                                    <span class="domain-label">Classified Domain:</span>
+                                    <span class="domain-value" id="domainName">-</span>
+                                </div>
+                                <div class="confidence-meter-container">
+                                    <span class="confidence-label">Confidence:</span>
+                                    <div class="confidence-meter">
+                                        <div class="confidence-bar" id="confidenceBar" style="width: 0%;"></div>
+                                        <span class="confidence-text" id="confidenceText">0%</span>
+                                    </div>
+                                </div>
+                                <div class="sensitivity-indicator" id="sensitivityIndicator" style="display: none;">
+                                    <span class="sensitivity-badge">⚠️ High-Sensitivity Domain</span>
+                                    <small class="sensitivity-note">Ethics agent weight boosted to 50%</small>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Processing Time:</span>
+                                    <span class="stat-value" id="domainTime">0ms</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Differential Privacy Metrics Panel -->
+                <div class="col-lg-4 mb-4 mb-lg-0">
+                    <div class="panel dp-panel">
+                        <div class="panel-header">
+                            <h2 class="panel-title">🔐 Privacy Guarantee</h2>
+                            <span class="badge dp-badge">ε-DP</span>
+                        </div>
+                        <div class="panel-body">
+                            <div id="dpContent" class="dp-content">
+                                <div class="placeholder-state">
+                                    <div class="placeholder-icon">📊</div>
+                                    <p class="placeholder-text">Awaiting query...</p>
+                                    <small class="text-muted">Differential Privacy metrics will appear here</small>
+                                </div>
+                            </div>
+                            <div id="dpMetrics" class="dp-metrics" style="display: none;">
+                                <div class="dp-guarantee-display">
+                                    <span class="guarantee-label">Guarantee:</span>
+                                    <span class="guarantee-value" id="dpGuarantee">(ε=1.0, δ=1e-5)-DP</span>
+                                </div>
+                                <div class="dp-budget-section">
+                                    <div class="budget-header">
+                                        <span class="budget-label">Privacy Budget (ε)</span>
+                                        <span class="budget-text" id="budgetText">0.0 / 1.0</span>
+                                    </div>
+                                    <div class="budget-meter">
+                                        <div class="budget-bar" id="budgetBar" style="width: 0%;"></div>
+                                    </div>
+                                    <small class="budget-note">Lower ε = stronger privacy</small>
+                                </div>
+                                <div class="dp-stats">
+                                    <div class="stat-item">
+                                        <span class="stat-label">Queries Processed:</span>
+                                        <span class="stat-value" id="queriesProcessed">0</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Noise Scale:</span>
+                                        <span class="stat-value" id="noiseScale">0.0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Agent Activity Monitor -->
-                <div class="col-lg-6">
+                <div class="col-lg-4">
                     <div class="panel agent-panel">
                         <div class="panel-header">
                             <h2 class="panel-title">🤖 Agent Activity</h2>
