@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  mppf:
+    build: .
+    container_name: mppf-service
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist knowledge base documents
+      - ./knowledge_base:/app/knowledge_base
+      # Persist ChromaDB vector database
+      - ./chroma_db:/app/chroma_db
+      # Persist audit logs
+      - ./audit.db:/app/audit.db
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=llama3-70b-8192
+      - EPSILON_BUDGET=1.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  default:
+    driver: bridge

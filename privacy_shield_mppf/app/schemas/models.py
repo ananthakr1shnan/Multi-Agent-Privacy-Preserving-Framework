@@ -75,6 +75,8 @@ class AggregatedResult(BaseModel):
     total_processing_time_ms: float
     privacy_analysis: PrivacyAnalysis
     domain_analysis: Optional['DomainAnalysis'] = None
+    retrieved_context: Optional[List[str]] = None
+    audit_id: Optional[int] = None
     agent_responses: List[AgentResponse]
     dp_metrics: Optional[DifferentialPrivacyMetrics] = None
 

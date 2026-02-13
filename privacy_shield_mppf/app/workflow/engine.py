@@ -11,6 +11,8 @@ from app.schemas.models import (
 )
 from app.workflow.privacy_node import privacy_shield
 from app.workflow.domain_expert_node import domain_expert
+from app.workflow.retriever_node import retriever as context_retriever
+from app.core.database import log_event
 from app.workflow.agent_nodes import productivity_agent, ethics_agent, creativity_agent
 from app.workflow.aggregator import aggregator
 
@@ -100,6 +102,30 @@ class WorkflowEngine:
             run_domain_expert()
         )
         
+        # Step 1.2: Context Retrieval (New)
+        # We can run this in parallel with privacy/domain analysis or after
+        # For simplicity, let's run it now to have it ready for agents
+        await self._emit_event(
+            NodeType.DOMAIN_EXPERT, # Using Domain Expert type as proxy since we don't have a specific retrieval node type enum yet
+            "processing",
+            "Retrieving relevant context...",
+            event_callback
+        )
+        
+        retrieved_context = []
+        if context_retriever:
+            # Retrieve based on the original query (or anonymized if stricter privacy needed)
+            # Using original query for better context matching, as this is local only
+            retrieved_context = context_retriever.retrieve(user_query)
+            
+        await self._emit_event(
+            NodeType.DOMAIN_EXPERT,
+            "completed",
+            f"Retrieved {len(retrieved_context)} relevant context items.",
+            event_callback,
+            data={"retrieved_context": retrieved_context}
+        )
+        
         # Step 1.5: Adaptive Re-Redaction for High-Sensitivity Domains
         if domain_analysis.is_high_sensitivity and not privacy_analysis.aggressive_mode_triggered:
             await self._emit_event(
@@ -129,7 +155,7 @@ class WorkflowEngine:
                 }
             )
         
-        # Step 2: Parallel Agent Execution with Domain Context
+        # Step 2: Parallel Agent Execution with Domain Context AND Retrieved Context
         anonymized_query = privacy_analysis.anonymized_text
         domain_context = domain_analysis.persona_directive
         
@@ -156,9 +182,9 @@ class WorkflowEngine:
         
         # Execute all agents in parallel with domain context
         agent_results = await asyncio.gather(
-            productivity_agent.process(anonymized_query, domain_context),
-            ethics_agent.process(anonymized_query, domain_context),
-            creativity_agent.process(anonymized_query, domain_context),
+            productivity_agent.process(anonymized_query, domain_context, retrieved_context),
+            ethics_agent.process(anonymized_query, domain_context, retrieved_context),
+            creativity_agent.process(anonymized_query, domain_context, retrieved_context),
             return_exceptions=True
         )
         
@@ -189,21 +215,29 @@ class WorkflowEngine:
         
         total_time = (time.time() - workflow_start) * 1000
         
-        final_result = aggregator.synthesize(
+        final_result = await aggregator.synthesize(
             agent_responses=[r for r in agent_results if not isinstance(r, Exception)],
             privacy_analysis=privacy_analysis,
             domain_analysis=domain_analysis,
             total_processing_time_ms=total_time
         )
         
+        # Add retrieved context to final result
+        final_result.retrieved_context = retrieved_context
+        
+        # Audit Logging (New)
+        audit_id = log_event(final_result, user_query) # Log the full event
+        final_result.audit_id = audit_id
+        
         await self._emit_event(
             NodeType.AGGREGATOR,
             "completed",
-            f"Final response generated in {total_time:.0f}ms",
+            f"Final response generated in {total_time:.0f}ms. Audit ID: {audit_id}",
             event_callback,
             data={
                 "total_processing_time_ms": total_time,
-                "agent_contributions": final_result.agent_contributions
+                "agent_contributions": final_result.agent_contributions,
+                "audit_id": audit_id
             }
         )
         

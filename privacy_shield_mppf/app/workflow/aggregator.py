@@ -5,6 +5,9 @@ Synthesizes outputs from multiple agents into a coherent final response.
 from typing import List, Dict
 from app.schemas.models import AgentResponse, AggregatedResult, PrivacyAnalysis, DomainAnalysis, DifferentialPrivacyMetrics
 from app.privacy import dp_layer
+from langchain_groq import ChatGroq
+from langchain_core.messages import SystemMessage, HumanMessage
+from app.core.config import settings
 
 
 class ResponseAggregator:
@@ -20,8 +23,15 @@ class ResponseAggregator:
             "ethics_agent": 0.25,
             "creativity_agent": 0.25
         }
+        
+        # Initialize Llama 3 for synthesis
+        self.llm = ChatGroq(
+            api_key=settings.groq_api_key,
+            model_name="llama-3.3-70b-versatile",
+            temperature=0.3
+        )
     
-    def synthesize(
+    async def synthesize(
         self,
         agent_responses: List[AgentResponse],
         privacy_analysis: PrivacyAnalysis,
@@ -44,7 +54,11 @@ class ResponseAggregator:
         weights = self._calculate_weights(agent_responses, domain_analysis)
         
         # Apply Differential Privacy noise to weights
-        noisy_weights = dp_layer.apply_noise_to_scores(weights, sensitivity=0.1)
+        # Use lower sensitivity (0.01) to preserve utility while providing privacy
+        noisy_weights = dp_layer.apply_noise_to_scores(weights, sensitivity=0.01)
+        
+        # Normalize noisy weights to ensure they sum to 1.0 (and handle potential zeros)
+        noisy_weights = self._normalize_weights(noisy_weights)
         
         # Increment query count for DP tracking
         dp_layer.increment_query_count()
@@ -61,7 +75,7 @@ class ResponseAggregator:
         )
         
         # Build the final response with noisy weights
-        final_response = self._build_final_response(agent_responses, noisy_weights, domain_analysis)
+        final_response = await self._build_final_response(agent_responses, noisy_weights, domain_analysis)
         
         return AggregatedResult(
             final_response=final_response,
@@ -114,19 +128,147 @@ class ResponseAggregator:
         
         return weights
     
-    def _build_final_response(
+    def _normalize_weights(self, weights: Dict[str, float]) -> Dict[str, float]:
+        """
+        Normalize weights so they sum to 1.0.
+        Handles cases where noise might have pushed values to 0.
+        """
+        total = sum(weights.values())
+        
+        if total <= 0.001:
+            # If all zero (or negative/too small), fallback to uniform
+            count = len(weights)
+            return {k: 1.0 / count for k in weights}
+            
+        # 1. Normalize initially
+        normalized = {k: v / total for k, v in weights.items()}
+        
+        # 2. Enforce minimum floor (e.g., 5%)
+        min_floor = 0.05
+        count = len(normalized)
+        
+        # Identify agents below floor
+        below_floor = [k for k, v in normalized.items() if v < min_floor]
+        
+        if not below_floor:
+            return normalized
+            
+        # Set those below floor to min_floor
+        final_weights = {}
+        processed_weight = 0.0
+        
+        for k in below_floor:
+            final_weights[k] = min_floor
+            processed_weight += min_floor
+            
+        # Distribute remaining weight proportionally among others
+        remaining_budget = 1.0 - processed_weight
+        above_floor_agents = [k for k in normalized if k not in below_floor]
+        
+        # Calculate total weight of above-floor agents to normalize against
+        above_floor_total = sum(normalized[k] for k in above_floor_agents)
+        
+        if above_floor_total > 0:
+            for k in above_floor_agents:
+                share = normalized[k] / above_floor_total
+                final_weights[k] = share * remaining_budget
+        else:
+            # Edge case: All were somehow below floor or zero, distribute evenly
+            remaining_per_agent = remaining_budget / len(above_floor_agents) if above_floor_agents else 0
+            for k in above_floor_agents:
+                final_weights[k] = remaining_per_agent
+                
+        return final_weights
+
+    async def _build_final_response(
         self,
         agent_responses: List[AgentResponse],
         weights: Dict[str, float],
         domain_analysis: 'DomainAnalysis' = None
     ) -> str:
         """
-        Build the final synthesized response.
-        
-        For simplicity, we create a structured response showing each agent's contribution.
-        In a production system, you might use another LLM call to synthesize these into
-        a single coherent narrative.
+        Synthesize final response using Llama 3 as Lead Aggregator.
         """
+        # 1. format agent inputs
+        agent_inputs = []
+        for resp in agent_responses:
+            agent_name = resp.agent_type.value.replace('_', ' ').title()
+            weight_pct = int(weights.get(resp.agent_type.value, 0) * 100)
+            agent_inputs.append(f"--- {agent_name} (Weight: {weight_pct}%) ---\n{resp.response}\n")
+            
+        agents_text = "\n".join(agent_inputs)
+        
+        # 2. Determine dominance strategy
+        strategy = "Balance all perspectives."
+        if domain_analysis and domain_analysis.is_high_sensitivity:
+            strategy = "CRITICAL: High-sensitivity domain detected. Prioritize Ethics Agent warnings and safety guidelines above all else."
+            
+        # 3. Construct System Prompt
+        system_prompt = (
+            "You are the Lead Aggregator for a Privacy-Preserving Framework. "
+            "You will receive drafts from three specialized agents: Productivity, Ethics, and Creativity.\n\n"
+            "Your Task:\n"
+            "1. Synthesize their insights into one cohesive, professional response.\n"
+            f"2. Strategy: {strategy}\n"
+            "3. Ensure the final output is De-identified: Never mention the specific placeholders or agent names (e.g. 'Productivity Agent says...'). "
+            "make it sound like a single unified voice.\n"
+            "4. Apply a professional, helpful tone while strictly maintaining the 'Privacy Shield' boundaries.\n"
+            "5. If Ethics has a high weight, its safety warnings must be prominent."
+        )
+        
+        # 4. Construct User Prompt
+        user_prompt = (
+            f"Query Context: {domain_analysis.predicted_domain if domain_analysis else 'General'}\n\n"
+            f"Agent Drafts:\n{agents_text}\n\n"
+            "Synthesize the final response:"
+        )
+        
+        try:
+            # Call Llama 3
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
+            response = await self.llm.ainvoke(messages)
+            
+            # Form final response with agent contributions appended
+            final_text = response.content
+            
+            # Determine correct dominance strategy mention for header
+            header_strategy = "Standard"
+            if domain_analysis and domain_analysis.is_high_sensitivity:
+                header_strategy = "High Sensitivity (Ethics Prioritized)"
+            
+            # Append detailed breakdown
+            final_text += f"\n\n---\n\n### Agent Contributions ({header_strategy})\n"
+            
+            # Sort agents by weight for display if weights available
+            display_order = agent_responses
+            if weights:
+                display_order = sorted(
+                    agent_responses,
+                    key=lambda x: weights.get(x.agent_type.value, 0),
+                    reverse=True
+                )
+            
+            for resp in display_order:
+                agent_name = resp.agent_type.value.replace('_', ' ').title()
+                weight_pct = int(weights.get(resp.agent_type.value, 0) * 100) if weights else 0
+                final_text += f"\n**{agent_name}** ({weight_pct}%)\n{resp.response}\n"
+                
+            return final_text
+            
+        except Exception as e:
+            print(f"Error in LLM synthesis: {e}")
+            # Fallback to heuristic if LLM fails
+            return self._build_final_response_fallback(agent_responses, weights)
+
+    def _build_final_response_fallback(
+        self,
+        agent_responses: List[AgentResponse],
+        weights: Dict[str, float]
+    ) -> str:
+        """Backup heuristic method"""
         # Sort agents by weight (highest first)
         sorted_agents = sorted(
             agent_responses,
@@ -134,31 +276,19 @@ class ResponseAggregator:
             reverse=True
         )
         
-        # Build structured response
-        sections = []
-        
-        # Add subtle domain context badge if available
-        if domain_analysis:
-            sections.append(f"*Contextualized for {domain_analysis.predicted_domain} query*\n")
-        
-        # Primary response (highest weighted agent)
+        # Synthesize a basic response from the primary agent
         primary = sorted_agents[0]
-        sections.append(f"**Primary Response ({primary.agent_type.value.replace('_', ' ').title()})**\n")
-        sections.append(primary.response)
-        sections.append("\n")
+        final_text = f"**Consolidated Response (Heuristic)**\n\n{primary.response}"
         
-        # Additional perspectives
-        if len(sorted_agents) > 1:
-            sections.append("\n**Additional Perspectives**\n")
-            
-            for agent in sorted_agents[1:]:
-                agent_name = agent.agent_type.value.replace('_', ' ').title()
-                contribution_pct = int(weights.get(agent.agent_type.value, 0) * 100)
-                
-                sections.append(f"\n*{agent_name} ({contribution_pct}% contribution):*\n")
-                sections.append(agent.response)
+        # Append detailed breakdown
+        final_text += "\n\n---\n\n### Agent Contributions (Heuristic)\n"
         
-        return "\n".join(sections)
+        for agent in sorted_agents:
+            agent_name = agent.agent_type.value.replace('_', ' ').title()
+            weight_pct = int(weights.get(agent.agent_type.value, 0) * 100) if weights else 0
+            final_text += f"\n**{agent_name}** ({weight_pct}%)\n{agent.response}\n"
+        
+        return final_text
 
 
 # Global aggregator instance

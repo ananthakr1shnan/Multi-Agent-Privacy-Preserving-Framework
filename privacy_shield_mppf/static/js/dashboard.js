@@ -119,6 +119,24 @@ $(document).ready(function () {
             displayDPMetrics(result.dp_metrics);
         }
 
+        // Display Audit Log ID
+        if (result.audit_id) {
+            $('#auditIdDisplay').text('#' + result.audit_id);
+            $('#auditLogInfo').show();
+        }
+
+        // Display Retrieved Context
+        if (result.retrieved_context && result.retrieved_context.length > 0) {
+            const $list = $('#retrievedContextList');
+            $list.empty();
+            result.retrieved_context.forEach(ctx => {
+                $list.append(`<div style="margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px dotted #444;">• ${ctx}</div>`);
+            });
+            $('#retrieverSection').show();
+        } else {
+            $('#retrieverSection').hide();
+        }
+
         // Display agent contributions chart
         displayContributionChart(result.agent_contributions);
 
@@ -232,15 +250,22 @@ $(document).ready(function () {
     function displayDomainAnalysis(domainAnalysis) {
         if (!domainAnalysis) return;
 
+        console.log("Domain Analysis Data:", domainAnalysis);
+        console.log("Confidence:", domainAnalysis.confidence, "ProcessingTime:", domainAnalysis.processing_time_ms);
+
         // Show domain stats
         $('#domainStats').show();
         $('#domainContent').hide();
 
         // Update domain name
-        $('#domainName').text(domainAnalysis.predicted_domain);
+        $('#domainName').text(domainAnalysis.predicted_domain || 'Unknown');
 
-        // Update confidence meter
-        const confidencePct = Math.round(domainAnalysis.confidence * 100);
+        // Update confidence meter - handle undefined/null/string
+        let confidence = domainAnalysis.confidence;
+        if (typeof confidence === 'string') confidence = parseFloat(confidence);
+        const confidencePct = (confidence != null && !isNaN(confidence))
+            ? Math.round(confidence * 100)
+            : 0;
         $('#confidenceBar').css('width', confidencePct + '%');
         $('#confidenceText').text(confidencePct + '%');
 
@@ -250,9 +275,6 @@ $(document).ready(function () {
         } else {
             $('#sensitivityIndicator').hide();
         }
-
-        // Update processing time
-        $('#domainTime').text(Math.round(domainAnalysis.processing_time_ms) + 'ms');
     }
 
     // Display Differential Privacy Metrics
@@ -305,6 +327,9 @@ function displayDPMetrics(dpMetrics) {
     $('#queriesProcessed').text(dpMetrics.queries_processed);
     $('#noiseScale').text(dpMetrics.noise_scale.toFixed(2));
 }
+
+// Initialize dashboardUI namespace if it doesn't exist
+window.dashboardUI = window.dashboardUI || {};
 
 // Export DP function
 window.dashboardUI.displayDPMetrics = displayDPMetrics;

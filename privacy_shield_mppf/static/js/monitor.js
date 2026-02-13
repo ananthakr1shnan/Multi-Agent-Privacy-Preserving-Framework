@@ -88,7 +88,6 @@ $(document).ready(function () {
 
         // Show stats
         $('#redactionCount').text(redaction_count);
-        $('#privacyTime').text(Math.round(processing_time_ms) + 'ms');
         $('#privacyStats').show();
     }
 
@@ -98,6 +97,8 @@ $(document).ready(function () {
     }
 
     function handleDomainExpertEvent(status, message, data) {
+        console.log("Domain Expert Event:", status, message, data);
+
         if (status === 'started') {
             $('#domainContent').html(
                 '<div class="placeholder-state">' +
@@ -105,12 +106,19 @@ $(document).ready(function () {
                 '<p class="placeholder-text mt-3">Classifying domain...</p>' +
                 '</div>'
             );
-        } else if (status === 'completed' && data) {
+        } else if (status === 'completed' && data && data.predicted_domain) {
+            // Only call displayDomainAnalysis if this event has domain classification data
+            console.log("Calling displayDomainAnalysis with:", data);
+            console.log("window.dashboardUI exists?", !!window.dashboardUI);
+
             // Use the displayDomainAnalysis function from dashboard.js
             if (window.dashboardUI && window.dashboardUI.displayDomainAnalysis) {
                 window.dashboardUI.displayDomainAnalysis(data);
+            } else {
+                console.error("dashboardUI not found!");
             }
         }
+        // Ignore other completion events (like retrieved_context) for domain display
     }
 
 
