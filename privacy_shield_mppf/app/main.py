@@ -10,7 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from app.core.database import IST
+
+def _to_ist(dt: datetime) -> datetime:
+    """Convert any datetime to IST. Assumes UTC if no tzinfo is present."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(IST)
 
 from app.schemas.models import QueryRequest, FinalResponse, TraceEvent
 from app.workflow.engine import workflow_engine
@@ -116,7 +123,7 @@ async def stream_trace_events(request: Request):
         try:
             # Send initial connection event
             yield f"event: connected\n"
-            yield f"data: {json.dumps({'message': 'Connected to MPPF trace stream', 'timestamp': datetime.now().isoformat()})}\n\n"
+            yield f"data: {json.dumps({'message': 'Connected to MPPF trace stream', 'timestamp': _to_ist(datetime.now()).strftime('%Y-%m-%d %H:%M:%S IST')})}\n\n"
             
             # Stream events from the queue
             while True:
@@ -131,7 +138,7 @@ async def stream_trace_events(request: Request):
                 except asyncio.TimeoutError:
                     # Send keepalive ping
                     yield f"event: ping\n"
-                    yield f"data: {json.dumps({'timestamp': datetime.now().isoformat()})}\n\n"
+                    yield f"data: {json.dumps({'timestamp': _to_ist(datetime.now()).strftime('%Y-%m-%d %H:%M:%S IST')})}\n\n"
                     
         finally:
             # Remove client on disconnect
@@ -359,7 +366,7 @@ async def get_audit_logs(page: int = 1, limit: int = 20):
             "logs": [
                 {
                     "id": log.id,
-                    "timestamp": log.timestamp.isoformat(),
+                    "timestamp": _to_ist(log.timestamp).strftime("%Y-%m-%d %H:%M:%S IST"),
                     "query": log.user_query_anonymized,
                     "domain": log.domain,
                     "confidence": log.confidence,

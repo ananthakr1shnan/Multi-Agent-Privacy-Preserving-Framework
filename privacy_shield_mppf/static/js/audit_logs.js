@@ -29,7 +29,7 @@ $(document).ready(function () {
             html += '</tr></thead><tbody>';
 
             data.logs.forEach(log => {
-                const timestamp = new Date(log.timestamp).toLocaleString();
+                const timestamp = log.timestamp;  // pre-formatted IST string from server
 
                 html += '<tr>';
                 html += `<td>${log.id}</td>`;

@@ -57,8 +57,10 @@ class ResponseAggregator:
         # Use lower sensitivity (0.01) to preserve utility while providing privacy
         noisy_weights = dp_layer.apply_noise_to_scores(weights, sensitivity=0.01)
         
-        # Normalize noisy weights to ensure they sum to 1.0 (and handle potential zeros)
-        noisy_weights = self._normalize_weights(noisy_weights)
+        # Normalize noisy weights — enforce minimum floors:
+        #   ALL agents ≥ 5%  |  Ethics ≥ 10% in HIGH-sensitivity domains
+        # This prevents Laplace noise from eliminating ethics monitoring entirely.
+        noisy_weights = self._normalize_weights(noisy_weights, domain_analysis)
         
         # Increment query count for DP tracking
         dp_layer.increment_query_count()
@@ -128,10 +130,15 @@ class ResponseAggregator:
         
         return weights
     
-    def _normalize_weights(self, weights: Dict[str, float]) -> Dict[str, float]:
+    def _normalize_weights(
+        self,
+        weights: Dict[str, float],
+        domain_analysis: 'DomainAnalysis' = None
+    ) -> Dict[str, float]:
         """
-        Normalize weights so they sum to 1.0.
-        Handles cases where noise might have pushed values to 0.
+        Normalize weights so they sum to 1.0, then enforce minimum floors:
+        - ALL agents: ≥ 5% (prevents any agent being silenced by DP noise)
+        - Ethics agent: ≥ 10% in HIGH-sensitivity domains (constant monitoring guarantee)
         """
         total = sum(weights.values())
         
@@ -143,26 +150,31 @@ class ResponseAggregator:
         # 1. Normalize initially
         normalized = {k: v / total for k, v in weights.items()}
         
-        # 2. Enforce minimum floor (e.g., 5%)
-        min_floor = 0.05
-        count = len(normalized)
+        # 2. Determine per-agent floors
+        is_high_sensitivity = (
+            domain_analysis is not None and domain_analysis.is_high_sensitivity
+        )
+        base_floor = 0.05
+        floors = {k: base_floor for k in normalized}
+        if is_high_sensitivity and "ethics_agent" in floors:
+            floors["ethics_agent"] = 0.10  # guaranteed ethics monitoring
         
-        # Identify agents below floor
-        below_floor = [k for k, v in normalized.items() if v < min_floor]
+        # 3. Identify agents below their floor
+        below_floor = [k for k, v in normalized.items() if v < floors[k]]
         
         if not below_floor:
             return normalized
             
-        # Set those below floor to min_floor
+        # 4. Pin below-floor agents to their guaranteed minimum
         final_weights = {}
-        processed_weight = 0.0
+        pinned_total = 0.0
         
         for k in below_floor:
-            final_weights[k] = min_floor
-            processed_weight += min_floor
+            final_weights[k] = floors[k]
+            pinned_total += floors[k]
             
-        # Distribute remaining weight proportionally among others
-        remaining_budget = 1.0 - processed_weight
+        # 5. Distribute remaining budget proportionally among above-floor agents
+        remaining_budget = 1.0 - pinned_total
         above_floor_agents = [k for k in normalized if k not in below_floor]
         
         # Calculate total weight of above-floor agents to normalize against
@@ -173,7 +185,7 @@ class ResponseAggregator:
                 share = normalized[k] / above_floor_total
                 final_weights[k] = share * remaining_budget
         else:
-            # Edge case: All were somehow below floor or zero, distribute evenly
+            # Edge case: all were somehow at or below floor, distribute evenly
             remaining_per_agent = remaining_budget / len(above_floor_agents) if above_floor_agents else 0
             for k in above_floor_agents:
                 final_weights[k] = remaining_per_agent

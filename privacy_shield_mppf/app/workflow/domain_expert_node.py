@@ -68,7 +68,11 @@ class DomainExpert:
             base_model = T5ForConditionalGeneration.from_pretrained("t5-base")
             
             # Load LoRA adapter
-            self.model = PeftModel.from_pretrained(base_model, self.model_dir).to(self.device)
+            self.model = PeftModel.from_pretrained(
+                base_model,
+                self.model_dir,
+                ignore_mismatched_sizes=True,   # suppress position_ids UNEXPECTED warning
+            ).to(self.device)
             self.model.eval()
             
             # Load category mapping

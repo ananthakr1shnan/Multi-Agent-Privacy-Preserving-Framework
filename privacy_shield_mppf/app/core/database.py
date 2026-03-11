@@ -5,7 +5,14 @@ Stores complete provenance of user interactions for accountability and traceabil
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# Indian Standard Time = UTC+5:30
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def now_ist() -> datetime:
+    """Return current datetime in IST (UTC+5:30)."""
+    return datetime.now(IST)
 import json
 from app.schemas.models import AggregatedResult
 
@@ -39,7 +46,7 @@ class AuditLogTrace(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime(timezone=True), default=now_ist)
     
     # Inputs
     user_query_anonymized = Column(Text, nullable=False)

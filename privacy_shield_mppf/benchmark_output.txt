@@ -1,0 +1,61 @@
+
+Warning: en_core_web_sm not found. Please run: python -m spacy download en_core_web_sm
+≡ƒö╕ Loading Domain Expert (T5-base + LoRA) on cpu...
+System.Management.Automation.RemoteException
+Γ£à Domain Expert loaded successfully with 13 categories
+
++==================================================================+
+|   MPPF -- Multi-Agent Performance & Privacy Benchmark             |
++==================================================================+
+|   Query : My name is Anantha Krishnan and my email is anantha@exampl...|
++==================================================================+
+
+  [*] Running State A -- Standard Baseline ...
+  >> State A ΓÇö Standard Baseline
+    Latency          :    3745.5 ms
+    Redactions (PII) :    3 entities
+    DP eps spent     : 0.0000  /  remaining: 1.0000
+    Weights          : Productivity:33%  Ethics:33%  Creativity:33%
+
+  [*] Running State B -- Privacy-Hardened Framework ...
+  >> State B ΓÇö Privacy-Hardened Framework
+    Latency          :    4988.8 ms
+    Redactions (PII) :    3 entities
+    Domain Detected  : Privacy/Data Security  (conf=90%, sensitivity=HIGH)
+    DP eps spent     : 0.1000  /  remaining: 0.9000
+    Weights          : Creativity:5%  Ethics:63%  Productivity:32%
+
+====================================================================
+  BENCHMARK METRICS -- REQUIRED OUTPUTS
+====================================================================
+
+  +-- 1. LATENCY DELTA (State B - State A) --------------------------+
+  |   State A (Baseline)        :     3745.5 ms
+  |   State B (Privacy-Hardened):     4988.8 ms
+  |   Delta                     : +   1243.2 ms  (33.2% slower)
+  +-----------------------------------------------------------------+
+
+  +-- 2. REDACTION ACCURACY (Privacy Shield -- Local PII) -----------+
+  |   PII Entities (State A, std):   3
+  |   PII Entities (State B, agg):   3  (Delta +0)
+  |   Mode B uses adaptive re-redaction for high-sensitivity
+  |   domains (aggressive Presidio engine activated on trigger).
+  +-----------------------------------------------------------------+
+
+  +-- 3. INFORMATION ENTROPY (DP Uncertainty Score) ----------------+
+  |   H(State A -- Baseline)     :   7.6962 bits
+  |   H(State B -- DP-Hardened)  :   7.5890 bits
+  |   Entropy Delta              : -0.1072 bits  (v less uncertainty)
+  |   Note: DP-weighted aggregation compressed vocabulary (ethics-heavy text).
+  +-----------------------------------------------------------------+
+
+  +-- 4. PRIVACY BUDGET STATUS (Differential Privacy eps=1.0) -----+
+  |   Total Budget (eps)        : 1.00
+  |   eps Spent (this query)    : 0.1000
+  |   eps Remaining             : 0.9000
+  |   Budget consumed           : [###...................................] 10.0%
+  |   Guarantee                 : (eps=1.0, delta=1e-5)-DP
+  +-----------------------------------------------------------------+
+
+====================================================================
+
