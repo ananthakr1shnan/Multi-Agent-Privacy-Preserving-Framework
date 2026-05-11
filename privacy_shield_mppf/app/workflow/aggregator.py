@@ -1,307 +1,249 @@
 """
-Response Aggregator Node.
-Synthesizes outputs from multiple agents into a coherent final response.
+Response Aggregator / Judge — llama-3.3-70b-versatile @ temp=0.2
+(Official Groq replacement for deepseek-r1-distill-llama-70b)
+Decides ACCEPT, RETRY, or FORCE_ACCEPT based on the Ethics Agent verdict.
+On RETRY, produces specific feedback for the Productivity Agent.
 """
-from typing import List, Dict
-from app.schemas.models import AgentResponse, AggregatedResult, PrivacyAnalysis, DomainAnalysis, DifferentialPrivacyMetrics
-from app.privacy import dp_layer
+import time
+import json
+import re
+from typing import Optional
+
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
+
+from app.schemas.models import (
+    AgentResponse, EthicsVerdict, AggregatorDecision,
+    AggregatedResult, PrivacyAnalysis, DomainAnalysis,
+    DifferentialPrivacyMetrics, CreativeBrief,
+)
+from app.privacy import dp_layer
 from app.core.config import settings
+
+
+_JUDGE_PROMPT = """\
+You are the Lead Aggregator and Judge for a Privacy-Preserving AI Framework.
+
+A Productivity Agent has written a draft response, and an Ethics Agent has
+reviewed it. Your job is to make a final decision.
+
+Decision options:
+- ACCEPT       : Ethics passed, or issues are minor. Use the draft as-is.
+- RETRY        : Ethics failed significantly. Send the draft back with specific
+                 feedback so the Productivity Agent can fix it.
+- FORCE_ACCEPT : Maximum retries reached — accept despite ethics concerns,
+                 and note the caveats.
+
+Respond ONLY with valid JSON (no extra text):
+{
+  "action":    "ACCEPT" | "RETRY" | "FORCE_ACCEPT",
+  "reasoning": "Your chain-of-thought reasoning (2–4 sentences).",
+  "feedback":  "Specific, actionable instructions for the Productivity Agent.
+                Required when action is RETRY; null otherwise."
+}
+"""
 
 
 class ResponseAggregator:
     """
-    Combines agent responses using weighted synthesis.
-    Adapts weights based on query characteristics.
+    Judge Aggregator using deepseek-r1-distill-llama-70b.
+    Also applies Differential Privacy metrics for audit transparency.
     """
-    
+
     def __init__(self):
-        # Default weights for each agent type
-        self.default_weights = {
-            "productivity_agent": 0.5,
-            "ethics_agent": 0.25,
-            "creativity_agent": 0.25
-        }
-        
-        # Initialize Llama 3 for synthesis
         self.llm = ChatGroq(
             api_key=settings.groq_api_key,
-            model_name="llama-3.3-70b-versatile",
-            temperature=0.3
+            model_name=settings.aggregator_model,
+            temperature=0.2,
         )
-    
-    async def synthesize(
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Judge interface
+    # ──────────────────────────────────────────────────────────────────────────
+
+    async def judge(
         self,
-        agent_responses: List[AgentResponse],
-        privacy_analysis: PrivacyAnalysis,
-        domain_analysis: 'DomainAnalysis' = None,
-        total_processing_time_ms: float = 0
-    ) -> AggregatedResult:
+        draft: AgentResponse,
+        ethics_verdict: EthicsVerdict,
+        retry_count: int,
+        domain_analysis: Optional[DomainAnalysis] = None,
+    ) -> AggregatorDecision:
         """
-        Synthesize multiple agent responses into a final result.
-        
+        Decide whether to ACCEPT, RETRY, or FORCE_ACCEPT the draft.
+
         Args:
-            agent_responses: List of responses from all agents
-            privacy_analysis: Privacy shield analysis result
-            domain_analysis: Optional domain expert analysis for dynamic weighting
-            total_processing_time_ms: Total workflow execution time
-            
+            draft:           Productivity Agent's draft response
+            ethics_verdict:  Ethics Agent's structured verdict
+            retry_count:     Current number of retries so far
+            domain_analysis: Domain context (affects sensitivity weighting)
+
         Returns:
-            AggregatedResult with final response and metadata
+            AggregatorDecision with action + optional feedback
         """
-        # Calculate weights based on agent confidence and domain context
-        weights = self._calculate_weights(agent_responses, domain_analysis)
-        
-        # Apply Differential Privacy noise to weights
-        # Use lower sensitivity (0.01) to preserve utility while providing privacy
-        noisy_weights = dp_layer.apply_noise_to_scores(weights, sensitivity=0.01)
-        
-        # Normalize noisy weights — enforce minimum floors:
-        #   ALL agents ≥ 5%  |  Ethics ≥ 10% in HIGH-sensitivity domains
-        # This prevents Laplace noise from eliminating ethics monitoring entirely.
-        noisy_weights = self._normalize_weights(noisy_weights, domain_analysis)
-        
-        # Increment query count for DP tracking
+        # Fast-path: Ethics passed → always ACCEPT
+        if ethics_verdict.verdict == "PASS":
+            return AggregatorDecision(
+                action="ACCEPT",
+                reasoning="Ethics Agent approved the response.",
+                feedback=None,
+                retry_count=retry_count,
+            )
+
+        # Fast-path: Max retries exhausted → FORCE_ACCEPT
+        if retry_count >= settings.max_ethics_retries:
+            return AggregatorDecision(
+                action="FORCE_ACCEPT",
+                reasoning=(
+                    f"Maximum retries ({settings.max_ethics_retries}) reached. "
+                    "Force-accepting with an ethics warning."
+                ),
+                feedback=None,
+                retry_count=retry_count,
+            )
+
+        # Ethics failed and retries remain → ask DeepSeek to judge
+        return await self._llm_judge(draft, ethics_verdict, retry_count, domain_analysis)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Synthesise final output (called by engine after ACCEPT/FORCE_ACCEPT)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    async def build_final_result(
+        self,
+        draft: AgentResponse,
+        creative_brief: CreativeBrief,
+        ethics_verdict: EthicsVerdict,
+        decision: AggregatorDecision,
+        privacy_analysis: PrivacyAnalysis,
+        domain_analysis: Optional[DomainAnalysis],
+        retrieved_context: list,
+        total_time_ms: float,
+        retry_count: int,
+    ) -> AggregatedResult:
+        """Assemble the AggregatedResult from all pipeline outputs."""
+        # Apply DP noise for audit transparency
+        base_weights = {"creativity_agent": 0.5, "productivity_agent": 0.3, "ethics_agent": 0.2}
+        noisy_weights = dp_layer.apply_noise_to_scores(base_weights, sensitivity=0.01)
+
+        # Enforce a minimum floor (5%) so no agent vanishes from the chart,
+        # then renormalize so weights always sum to 1.0
+        min_floor = 0.05
+        floored = {k: max(min_floor, v) for k, v in noisy_weights.items()}
+        total = sum(floored.values())
+        noisy_weights = {k: round(v / total, 4) for k, v in floored.items()}
+
         dp_layer.increment_query_count()
-        
-        # Get DP metrics for transparency
-        dp_metrics_data = dp_layer.get_metrics()
+        dp_raw = dp_layer.get_metrics()
         dp_metrics = DifferentialPrivacyMetrics(
-            epsilon_budget=dp_metrics_data.epsilon_budget,
-            budget_used=dp_metrics_data.budget_used,
-            budget_remaining=dp_metrics_data.budget_remaining,
-            noise_scale=dp_metrics_data.noise_scale,
-            privacy_guarantee=dp_metrics_data.privacy_guarantee,
-            queries_processed=dp_metrics_data.queries_processed
+            epsilon_budget=dp_raw.epsilon_budget,
+            budget_used=dp_raw.budget_used,
+            budget_remaining=dp_raw.budget_remaining,
+            noise_scale=dp_raw.noise_scale,
+            privacy_guarantee=dp_raw.privacy_guarantee,
+            queries_processed=dp_raw.queries_processed,
         )
-        
-        # Build the final response with noisy weights
-        final_response = await self._build_final_response(agent_responses, noisy_weights, domain_analysis)
-        
+
+        # Append ethics warning if force-accepted
+        final_text = draft.response
+        if decision.action == "FORCE_ACCEPT":
+            final_text += (
+                "\n\n---\n⚠️ **Ethics Notice**: This response was accepted after "
+                f"{retry_count} revision attempt(s). "
+                f"Ethics concern: {ethics_verdict.reason}"
+            )
+
         return AggregatedResult(
-            final_response=final_response,
-            agent_contributions=noisy_weights,
-            total_processing_time_ms=total_processing_time_ms,
+            final_response=final_text,
+            creative_brief=creative_brief,
+            ethics_verdict=ethics_verdict,
+            aggregator_decision=decision,
+            retry_count=retry_count,
+            total_processing_time_ms=total_time_ms,
             privacy_analysis=privacy_analysis,
             domain_analysis=domain_analysis,
-            agent_responses=agent_responses,
-            dp_metrics=dp_metrics
+            retrieved_context=retrieved_context,
+            dp_metrics=dp_metrics,
+            agent_responses=[draft],
+            agent_contributions=noisy_weights,
         )
-    
-    def _calculate_weights(self, agent_responses: List[AgentResponse], domain_analysis: 'DomainAnalysis' = None) -> Dict[str, float]:
-        """
-        Calculate contribution weights for each agent.
-        Implements Expert-Informed Dynamic Weighting:
-        - For high-sensitivity domains (Privacy, Finance, Legal, Health), boost Ethics agent
-        - Otherwise, use confidence-based weighting
-        
-        Args:
-            agent_responses: List of agent responses
-            domain_analysis: Optional domain expert analysis
-            
-        Returns:
-            Dictionary mapping agent type to weight
-        """
-        weights = {}
-        
-        # Expert-Informed Weighting: Boost ethics for high-sensitivity domains
-        if domain_analysis and domain_analysis.is_high_sensitivity:
-            # High-sensitivity domain detected - prioritize ethics and safety
-            for resp in agent_responses:
-                if resp.agent_type.value == "ethics_agent":
-                    weights["ethics_agent"] = 0.5  # 50% weight for ethics
-                elif resp.agent_type.value == "productivity_agent":
-                    weights["productivity_agent"] = 0.35  # 35% for productivity
-                elif resp.agent_type.value == "creativity_agent":
-                    weights["creativity_agent"] = 0.15  # 15% for creativity
-        else:
-            # Standard confidence-based weighting
-            total_confidence = sum(resp.confidence for resp in agent_responses)
-            
-            if total_confidence == 0:
-                # Fallback to default weights
-                return {resp.agent_type.value: self.default_weights.get(resp.agent_type.value, 0.33)
-                        for resp in agent_responses}
-            
-            # Weight by confidence
-            for resp in agent_responses:
-                weights[resp.agent_type.value] = resp.confidence / total_confidence
-        
-        return weights
-    
-    def _normalize_weights(
-        self,
-        weights: Dict[str, float],
-        domain_analysis: 'DomainAnalysis' = None
-    ) -> Dict[str, float]:
-        """
-        Normalize weights so they sum to 1.0, then enforce minimum floors:
-        - ALL agents: ≥ 5% (prevents any agent being silenced by DP noise)
-        - Ethics agent: ≥ 10% in HIGH-sensitivity domains (constant monitoring guarantee)
-        """
-        total = sum(weights.values())
-        
-        if total <= 0.001:
-            # If all zero (or negative/too small), fallback to uniform
-            count = len(weights)
-            return {k: 1.0 / count for k in weights}
-            
-        # 1. Normalize initially
-        normalized = {k: v / total for k, v in weights.items()}
-        
-        # 2. Determine per-agent floors
-        is_high_sensitivity = (
-            domain_analysis is not None and domain_analysis.is_high_sensitivity
-        )
-        base_floor = 0.05
-        floors = {k: base_floor for k in normalized}
-        if is_high_sensitivity and "ethics_agent" in floors:
-            floors["ethics_agent"] = 0.10  # guaranteed ethics monitoring
-        
-        # 3. Identify agents below their floor
-        below_floor = [k for k, v in normalized.items() if v < floors[k]]
-        
-        if not below_floor:
-            return normalized
-            
-        # 4. Pin below-floor agents to their guaranteed minimum
-        final_weights = {}
-        pinned_total = 0.0
-        
-        for k in below_floor:
-            final_weights[k] = floors[k]
-            pinned_total += floors[k]
-            
-        # 5. Distribute remaining budget proportionally among above-floor agents
-        remaining_budget = 1.0 - pinned_total
-        above_floor_agents = [k for k in normalized if k not in below_floor]
-        
-        # Calculate total weight of above-floor agents to normalize against
-        above_floor_total = sum(normalized[k] for k in above_floor_agents)
-        
-        if above_floor_total > 0:
-            for k in above_floor_agents:
-                share = normalized[k] / above_floor_total
-                final_weights[k] = share * remaining_budget
-        else:
-            # Edge case: all were somehow at or below floor, distribute evenly
-            remaining_per_agent = remaining_budget / len(above_floor_agents) if above_floor_agents else 0
-            for k in above_floor_agents:
-                final_weights[k] = remaining_per_agent
-                
-        return final_weights
 
-    async def _build_final_response(
+    # ──────────────────────────────────────────────────────────────────────────
+    # Private helpers
+    # ──────────────────────────────────────────────────────────────────────────
+
+    async def _llm_judge(
         self,
-        agent_responses: List[AgentResponse],
-        weights: Dict[str, float],
-        domain_analysis: 'DomainAnalysis' = None
-    ) -> str:
-        """
-        Synthesize final response using Llama 3 as Lead Aggregator.
-        """
-        # 1. format agent inputs
-        agent_inputs = []
-        for resp in agent_responses:
-            agent_name = resp.agent_type.value.replace('_', ' ').title()
-            weight_pct = int(weights.get(resp.agent_type.value, 0) * 100)
-            agent_inputs.append(f"--- {agent_name} (Weight: {weight_pct}%) ---\n{resp.response}\n")
-            
-        agents_text = "\n".join(agent_inputs)
-        
-        # 2. Determine dominance strategy
-        strategy = "Balance all perspectives."
+        draft: AgentResponse,
+        ethics_verdict: EthicsVerdict,
+        retry_count: int,
+        domain_analysis: Optional[DomainAnalysis],
+    ) -> AggregatorDecision:
+        """Call DeepSeek to decide RETRY vs a borderline ACCEPT."""
+        sensitivity_note = ""
         if domain_analysis and domain_analysis.is_high_sensitivity:
-            strategy = "CRITICAL: High-sensitivity domain detected. Prioritize Ethics Agent warnings and safety guidelines above all else."
-            
-        # 3. Construct System Prompt
-        system_prompt = (
-            "You are the Lead Aggregator for a Privacy-Preserving Framework. "
-            "You will receive drafts from three specialized agents: Productivity, Ethics, and Creativity.\n\n"
-            "Your Task:\n"
-            "1. Synthesize their insights into one cohesive, professional response.\n"
-            f"2. Strategy: {strategy}\n"
-            "3. Ensure the final output is De-identified: Never mention the specific placeholders or agent names (e.g. 'Productivity Agent says...'). "
-            "make it sound like a single unified voice.\n"
-            "4. Apply a professional, helpful tone while strictly maintaining the 'Privacy Shield' boundaries.\n"
-            "5. If Ethics has a high weight, its safety warnings must be prominent."
-        )
-        
-        # 4. Construct User Prompt
+            sensitivity_note = (
+                f"\nNote: This is a HIGH-SENSITIVITY domain "
+                f"({domain_analysis.predicted_domain}). "
+                "Apply stricter standards."
+            )
+
         user_prompt = (
-            f"Query Context: {domain_analysis.predicted_domain if domain_analysis else 'General'}\n\n"
-            f"Agent Drafts:\n{agents_text}\n\n"
-            "Synthesize the final response:"
+            f"Retry attempt: {retry_count}/{settings.max_ethics_retries}"
+            f"{sensitivity_note}\n\n"
+            f"Draft Response:\n{draft.response}\n\n"
+            f"Ethics Verdict: {ethics_verdict.verdict}\n"
+            f"Ethics Reason: {ethics_verdict.reason}\n"
+            f"Suggestions: {', '.join(ethics_verdict.suggestions) if ethics_verdict.suggestions else 'None'}\n\n"
+            "Make your decision as JSON:"
         )
-        
+
         try:
-            # Call Llama 3
-            messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_prompt)
-            ]
-            response = await self.llm.ainvoke(messages)
-            
-            # Form final response with agent contributions appended
-            final_text = response.content
-            
-            # Determine correct dominance strategy mention for header
-            header_strategy = "Standard"
-            if domain_analysis and domain_analysis.is_high_sensitivity:
-                header_strategy = "High Sensitivity (Ethics Prioritized)"
-            
-            # Append detailed breakdown
-            final_text += f"\n\n---\n\n### Agent Contributions ({header_strategy})\n"
-            
-            # Sort agents by weight for display if weights available
-            display_order = agent_responses
-            if weights:
-                display_order = sorted(
-                    agent_responses,
-                    key=lambda x: weights.get(x.agent_type.value, 0),
-                    reverse=True
-                )
-            
-            for resp in display_order:
-                agent_name = resp.agent_type.value.replace('_', ' ').title()
-                weight_pct = int(weights.get(resp.agent_type.value, 0) * 100) if weights else 0
-                final_text += f"\n**{agent_name}** ({weight_pct}%)\n{resp.response}\n"
-                
-            return final_text
-            
+            resp = await self.llm.ainvoke([
+                SystemMessage(content=_JUDGE_PROMPT),
+                HumanMessage(content=user_prompt),
+            ])
+            parsed = self._parse_decision(resp.content)
+            return AggregatorDecision(
+                action=parsed.get("action", "RETRY"),
+                reasoning=parsed.get("reasoning", ""),
+                feedback=parsed.get("feedback"),
+                retry_count=retry_count,
+            )
         except Exception as e:
-            print(f"Error in LLM synthesis: {e}")
-            # Fallback to heuristic if LLM fails
-            return self._build_final_response_fallback(agent_responses, weights)
+            print(f"[Aggregator] LLM judge error: {e}")
+            # Safe fallback: retry with the ethics suggestions as feedback
+            return AggregatorDecision(
+                action="RETRY",
+                reasoning="Aggregator encountered an error; defaulting to RETRY.",
+                feedback="; ".join(ethics_verdict.suggestions) or ethics_verdict.reason,
+                retry_count=retry_count,
+            )
 
-    def _build_final_response_fallback(
-        self,
-        agent_responses: List[AgentResponse],
-        weights: Dict[str, float]
-    ) -> str:
-        """Backup heuristic method"""
-        # Sort agents by weight (highest first)
-        sorted_agents = sorted(
-            agent_responses,
-            key=lambda x: weights.get(x.agent_type.value, 0),
-            reverse=True
-        )
-        
-        # Synthesize a basic response from the primary agent
-        primary = sorted_agents[0]
-        final_text = f"**Consolidated Response (Heuristic)**\n\n{primary.response}"
-        
-        # Append detailed breakdown
-        final_text += "\n\n---\n\n### Agent Contributions (Heuristic)\n"
-        
-        for agent in sorted_agents:
-            agent_name = agent.agent_type.value.replace('_', ' ').title()
-            weight_pct = int(weights.get(agent.agent_type.value, 0) * 100) if weights else 0
-            final_text += f"\n**{agent_name}** ({weight_pct}%)\n{agent.response}\n"
-        
-        return final_text
+    def _parse_decision(self, content: str) -> dict:
+        """Robustly parse the JSON decision from the LLM's raw output."""
+        content = content.strip()
+
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
+        m = re.search(r"\{.*\}", content, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group())
+            except json.JSONDecodeError:
+                pass
+
+        # Text fallback
+        action = "ACCEPT" if "accept" in content.lower() else "RETRY"
+        return {"action": action, "reasoning": content[:300], "feedback": None}
 
 
-# Global aggregator instance
+# Global singleton
 aggregator = ResponseAggregator()

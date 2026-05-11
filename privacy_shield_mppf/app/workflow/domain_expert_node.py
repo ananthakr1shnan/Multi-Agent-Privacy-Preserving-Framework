@@ -59,7 +59,7 @@ class DomainExpert:
     def _load_model(self):
         """Load T5 model, LoRA adapter, and category mappings."""
         try:
-            print(f"🔸 Loading Domain Expert (T5-base + LoRA) on {self.device}...")
+            print(f"[DomainExpert] Loading T5-base + LoRA on {self.device}...")
             
             # Load tokenizer
             self.tokenizer = T5Tokenizer.from_pretrained(self.model_dir)
@@ -81,11 +81,11 @@ class DomainExpert:
                 self.cat_mapping = json.load(f)
             self.id2cat = {v: k for k, v in self.cat_mapping.items()}
             
-            print(f"✅ Domain Expert loaded successfully with {len(self.cat_mapping)} categories")
+            print(f"[DomainExpert] Loaded successfully with {len(self.cat_mapping)} categories")
             
         except Exception as e:
-            print(f"⚠️ Warning: Could not load T5 model: {e}")
-            print("   Falling back to keyword-based classification")
+            print(f"[DomainExpert] Warning: Could not load T5 model: {e}")
+            print("[DomainExpert] Falling back to keyword-based classification")
             self.model = None
     
     def analyze_domain(self, anonymized_query: str) -> DomainAnalysis:

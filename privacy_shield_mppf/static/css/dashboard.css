@@ -465,6 +465,29 @@ body {
     background: var(--success);
 }
 
+/* Sequential pipeline arrow */
+.pipeline-arrow {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    line-height: 1;
+    margin: -0.25rem 0;
+    opacity: 0.5;
+}
+
+/* Node badge overrides for new types */
+.node-badge.web-search {
+    border-color: rgba(0, 180, 240, 0.5);
+    color: hsl(195, 100%, 60%);
+    background: rgba(0, 180, 240, 0.08);
+}
+
+.node-badge.ethics {
+    border-color: rgba(255, 180, 0, 0.5);
+    color: hsl(45, 100%, 60%);
+    background: rgba(255, 180, 0, 0.08);
+}
+
 /* Final Response */
 .final-response {
     background: var(--bg-dark);

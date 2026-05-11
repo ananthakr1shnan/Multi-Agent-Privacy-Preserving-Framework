@@ -28,10 +28,10 @@ from app.core.config import settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
-    print(f"🚀 MPPF Server starting on {settings. host}:{settings.port}")
-    print(f"📊 Mission Control Dashboard: http://localhost:{settings.port}")
+    print(f"[MPPF] Server starting on {settings.host}:{settings.port}")
+    print(f"[MPPF] Dashboard: http://localhost:{settings.port}")
     yield
-    print("🛑 MPPF Server shutting down")
+    print("[MPPF] Server shutting down")
 
 
 # Initialize FastAPI app

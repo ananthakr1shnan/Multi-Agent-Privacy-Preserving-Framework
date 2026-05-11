@@ -110,11 +110,11 @@ $(document).ready(function () {
     }
 
     function displayFinalResult(result) {
-        // Display final response
+        // Display final response (markdown rendered)
         const formattedResponse = formatMarkdown(result.final_response);
         $('#finalResponse').html(formattedResponse);
 
-        // Display DP metrics if available
+        // Display DP metrics
         if (result.dp_metrics) {
             displayDPMetrics(result.dp_metrics);
         }
@@ -130,41 +130,74 @@ $(document).ready(function () {
             const $list = $('#retrievedContextList');
             $list.empty();
             result.retrieved_context.forEach(ctx => {
-                $list.append(`<div style="margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px dotted #444;">• ${ctx}</div>`);
+                $list.append(`<div style="margin-bottom:4px;padding-bottom:4px;border-bottom:1px dotted #444;">• ${ctx}</div>`);
             });
             $('#retrieverSection').show();
         } else {
             $('#retrieverSection').hide();
         }
 
-        // Display agent contributions chart
+        // Display Ethics Verdict
+        if (result.ethics_verdict) {
+            const v = result.ethics_verdict;
+            const isPass = v.verdict === 'PASS';
+            const badgeClass = isPass ? 'bg-success' : 'bg-danger';
+            let ethicsHtml = `<div class="mt-3 p-2" style="border:1px solid #444;border-radius:6px;background:#111;">
+                <strong style="color:#e0e0e0;">Ethics Review</strong>
+                <span class="badge ${badgeClass} ms-2">${v.verdict}</span>
+                <p style="font-size:0.85rem;color:#aaaaaa;margin-top:6px;margin-bottom:4px;">${v.reason}</p>`;
+            if (v.suggestions && v.suggestions.length > 0) {
+                ethicsHtml += `<ul style="font-size:0.8rem;color:#ffc107;margin-bottom:0;padding-left:18px;">` +
+                    v.suggestions.map(s => `<li>${s}</li>`).join('') + `</ul>`;
+            }
+            ethicsHtml += `</div>`;
+            $('#finalResponse').append(ethicsHtml);
+        }
+
+        // Display Aggregator Decision + retry count
+        if (result.aggregator_decision) {
+            const d = result.aggregator_decision;
+            const actionClass = d.action === 'ACCEPT' ? 'bg-success'
+                : d.action === 'FORCE_ACCEPT' ? 'bg-warning text-dark' : 'bg-info';
+            const retryTxt = result.retry_count > 0
+                ? ` after ${result.retry_count} retry attempt(s)` : '';
+            $('#finalResponse').append(
+                `<div class="mt-2 text-end">
+                    <span class="badge ${actionClass}">Aggregator: ${d.action}${retryTxt}</span>
+                </div>`
+            );
+        }
+
+        // Display pipeline chart (productivity vs ethics contribution proxy)
         displayContributionChart(result.agent_contributions);
 
-        // Show processing time
         addTraceLog(
             'success',
             'COMPLETE',
-            `Workflow completed in ${Math.round(result.total_processing_time_ms)}ms`
+            `Pipeline complete in ${Math.round(result.total_processing_time_ms)}ms` +
+            (result.retry_count > 0 ? ` (${result.retry_count} retry/retries)` : '')
         );
     }
 
     function displayContributionChart(contributions) {
+        if (!contributions || Object.keys(contributions).length === 0) return;
         $('#chartContainer').show();
 
         const ctx = document.getElementById('contributionChart');
+        if (contributionChart) contributionChart.destroy();
 
-        // Destroy existing chart
-        if (contributionChart) {
-            contributionChart.destroy();
-        }
+        // Fixed per-agent labels and colors (order-independent)
+        const agentMeta = {
+            creativity_agent:   { label: '🎨 Creativity',   bg: 'rgba(0, 180, 240, 0.85)',  border: 'rgba(0, 180, 240, 1)'  },
+            productivity_agent: { label: '💼 Productivity', bg: 'rgba(138, 43, 226, 0.85)', border: 'rgba(138, 43, 226, 1)' },
+            ethics_agent:       { label: '⚖️ Ethics',       bg: 'rgba(0, 200, 150, 0.85)',  border: 'rgba(0, 200, 150, 1)'  },
+        };
 
-        const labels = Object.keys(contributions).map(k =>
-            k.replace('_', ' ').split(' ').map(w =>
-                w.charAt(0).toUpperCase() + w.slice(1)
-            ).join(' ')
-        );
-
-        const data = Object.values(contributions).map(v => (v * 100).toFixed(1));
+        const keys         = Object.keys(contributions);
+        const labels       = keys.map(k => agentMeta[k] ? agentMeta[k].label : k.replaceAll('_', ' '));
+        const data         = keys.map(k => (contributions[k] * 100).toFixed(1));
+        const bgColors     = keys.map(k => agentMeta[k] ? agentMeta[k].bg     : 'rgba(180,180,180,0.8)');
+        const borderColors = keys.map(k => agentMeta[k] ? agentMeta[k].border : 'rgba(180,180,180,1)');
 
         contributionChart = new Chart(ctx, {
             type: 'doughnut',
@@ -172,16 +205,8 @@ $(document).ready(function () {
                 labels: labels,
                 datasets: [{
                     data: data,
-                    backgroundColor: [
-                        'rgba(66, 135, 245, 0.8)',
-                        'rgba(138, 43, 226, 0.8)',
-                        'rgba(0, 200, 150, 0.8)'
-                    ],
-                    borderColor: [
-                        'rgba(66, 135, 245, 1)',
-                        'rgba(138, 43, 226, 1)',
-                        'rgba(0, 200, 150, 1)'
-                    ],
+                    backgroundColor: bgColors,
+                    borderColor: borderColors,
                     borderWidth: 2
                 }]
             },
@@ -194,17 +219,12 @@ $(document).ready(function () {
                         labels: {
                             color: '#e0e0e0',
                             padding: 15,
-                            font: {
-                                size: 12,
-                                family: 'Inter'
-                            }
+                            font: { size: 12, family: 'Inter' }
                         }
                     },
                     tooltip: {
                         callbacks: {
-                            label: function (context) {
-                                return context.label + ': ' + context.parsed + '%';
-                            }
+                            label: (ctx) => `${ctx.label}: ${ctx.parsed}%`
                         }
                     }
                 }

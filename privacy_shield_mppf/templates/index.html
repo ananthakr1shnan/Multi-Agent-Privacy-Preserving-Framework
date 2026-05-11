@@ -286,49 +286,97 @@
                     </div>
                 </div>
 
-                <!-- Agent Activity Monitor -->
+                <!-- Agent Activity Monitor — Sequential Pipeline -->
                 <div class="col-lg-4">
                     <div class="panel agent-panel">
                         <div class="panel-header">
-                            <h2 class="panel-title">🤖 Agent Activity</h2>
+                            <h2 class="panel-title">🤖 Agent Pipeline</h2>
+                            <span id="retryCounter" class="badge bg-warning text-dark"
+                                style="display:none;font-size:0.75rem;"></span>
                         </div>
                         <div class="panel-body">
+
+                            <!-- Web Search Status -->
+                            <div id="webSearchStatus" class="mb-3"
+                                style="display:none;padding:6px 10px;border-radius:6px;background:#1a1a2e;font-size:0.82rem;">
+                            </div>
+
+                            <!-- Pipeline chain -->
                             <div id="agentMonitor" class="agent-monitor">
-                                <div class="agent-status" data-agent="productivity">
-                                    <div class="agent-icon">💼</div>
-                                    <div class="agent-info">
-                                        <div class="agent-name">Productivity Agent</div>
-                                        <div class="agent-state">Idle</div>
-                                    </div>
-                                    <div class="agent-indicator">
-                                        <div class="pulse-dot"></div>
-                                    </div>
-                                </div>
-                                <div class="agent-status" data-agent="ethics">
-                                    <div class="agent-icon">⚖️</div>
-                                    <div class="agent-info">
-                                        <div class="agent-name">Ethics Agent</div>
-                                        <div class="agent-state">Idle</div>
-                                    </div>
-                                    <div class="agent-indicator">
-                                        <div class="pulse-dot"></div>
-                                    </div>
-                                </div>
+
+                                <!-- Creativity Agent -->
                                 <div class="agent-status" data-agent="creativity">
                                     <div class="agent-icon">🎨</div>
                                     <div class="agent-info">
-                                        <div class="agent-name">Creativity Agent</div>
+                                        <div class="agent-name">Creativity Agent
+                                            <small class="text-muted" style="font-size:0.7rem;"> llama-3.3-70b</small>
+                                        </div>
                                         <div class="agent-state">Idle</div>
                                     </div>
                                     <div class="agent-indicator">
                                         <div class="pulse-dot"></div>
                                     </div>
                                 </div>
-                            </div>
+
+                                <!-- Arrow -->
+                                <div class="pipeline-arrow">↓</div>
+
+                                <!-- Productivity Agent -->
+                                <div class="agent-status" data-agent="productivity">
+                                    <div class="agent-icon">💼</div>
+                                    <div class="agent-info">
+                                        <div class="agent-name">Productivity Agent
+                                            <small class="text-muted" style="font-size:0.7rem;"> llama-3.1-8b</small>
+                                        </div>
+                                        <div class="agent-state">Idle</div>
+                                    </div>
+                                    <div class="agent-indicator">
+                                        <div class="pulse-dot"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Arrow -->
+                                <div class="pipeline-arrow">↓</div>
+
+                                <!-- Ethics Agent -->
+                                <div class="agent-status" data-agent="ethics">
+                                    <div class="agent-icon">⚖️</div>
+                                    <div class="agent-info">
+                                        <div class="agent-name">Ethics Agent
+                                            <small class="text-muted" style="font-size:0.7rem;"> llama-4-scout-17b</small>
+                                        </div>
+                                        <div class="agent-state">Idle</div>
+                                    </div>
+                                    <div class="agent-indicator">
+                                        <div class="pulse-dot"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Arrow -->
+                                <div class="pipeline-arrow">↓</div>
+
+                                <!-- Aggregator / Judge -->
+                                <div class="agent-status" data-agent="aggregator">
+                                    <div class="agent-icon">🧑‍⚖️</div>
+                                    <div class="agent-info">
+                                        <div class="agent-name">Aggregator Judge
+                                            <small class="text-muted" style="font-size:0.7rem;"> llama-3.3-70b</small>
+                                        </div>
+                                        <div class="agent-state">Idle</div>
+                                        <div id="aggregatorDecision" style="display:none;margin-top:4px;"></div>
+                                    </div>
+                                    <div class="agent-indicator">
+                                        <div class="pulse-dot"></div>
+                                    </div>
+                                </div>
+
+                            </div><!-- /agent-monitor -->
                         </div>
                     </div>
                 </div>
+
             </div>
+
 
             <!-- Trace Terminal & Results -->
             <div class="row">
